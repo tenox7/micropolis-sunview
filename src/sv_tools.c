@@ -111,7 +111,12 @@ tl_draw()
 
   for (i = 0; tl_layout[i].icon != NULL; i++) {
     sel = (tl_layout[i].state == tl_state);
-    img = tl_img[i][sel];
+    /* DUX shows the plain icons, and the hi one for the selected tool.
+     * The icons have no mono colors, so in 1 bit the plain ones come out
+     * dark and the hi ones light.  There every tool shows its hi icon, and
+     * the selected one in reverse video, as DUX's mono colors do for its
+     * graph buttons (gr*hi.xpm). */
+    img = tl_img[i][(sel || !SvColor) ? 1 : 0];
     if (img == NULL)
       img = tl_img[i][0];
     if (img == NULL)
@@ -122,9 +127,12 @@ tl_draw()
     sv_draw_image(tl_buf, x + 1, y + 1, img);
     if (SvColor)
       sv_bevel(tl_buf, x, y, img->w + 2, img->h + 2, !sel);
-    else if (sel)
+    else if (sel) {
+      pr_rop(tl_buf, x + 1, y + 1, img->w, img->h, PIX_NOT(PIX_DST),
+	     (Pixrect *)0, 0, 0);
       sv_frame_rect(tl_buf, x - 1, y - 1, img->w + 4, img->h + 4,
 		    SIMCOLOR_BLACK, 2);
+    }
   }
 }
 
