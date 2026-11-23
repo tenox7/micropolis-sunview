@@ -66,7 +66,14 @@
  */
 
 #include <stdio.h>
+#ifdef SUNOS3
+/* SunOS 3.5 has no <stdlib.h> */
+extern char *malloc(), *calloc(), *realloc(), *getenv();
+extern double atof();
+extern long atol(), strtol();
+#else
 #include <stdlib.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>

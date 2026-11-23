@@ -1,7 +1,9 @@
 #include "sim.h"
 
 #include <stdio.h>
+#ifndef SUNOS3
 #include <stdlib.h>
+#endif
 
 /*
  * random.c:

@@ -1,7 +1,8 @@
 # Micropolis for SunView
 
 A port of Micropolis, the open source city simulator, to
-[SunView](https://en.wikipedia.org/wiki/SunView) on SunOS 4.1.
+[SunView](https://en.wikipedia.org/wiki/SunView) on SunOS 4.1 and
+SunOS 3.5.
 It is not X11: it runs right in SunView, on the console of an old
 Sun workstation.
 
@@ -34,6 +35,7 @@ with a monochrome framebuffer:
    [releases](https://github.com/tenox7/micropolis-sunview/releases).
    It is a static binary built on SunOS 4.1.4, so it needs no shared
    libraries and should run on other SunOS 4.1.x SPARC systems too.
+   For SunOS 3.5 on a Sun-3, download `micropolis-sunos35-sun3`.
 4. Start SunView, then from a shell tool:
 
 ```
@@ -78,9 +80,20 @@ patterns for the map overlays.
 Sound effects play through `/dev/audio`.
 Set `AUDIODEV` to use another device.
 
+## SunOS 3.5
+
+The same source builds on SunOS 3.5 (Sun-3) with `make sunos3`.
+SunOS 3.5 has no alerts, STREAMS, `<stdlib.h>` or `<dirent.h>`, so:
+
+- Yes or no questions (such as Quit) come up in a small window
+  with two buttons, not in an alert.
+- There is no sound: Sun-3 machines have no `/dev/audio`.
+
+Menus open with any mouse button, as on SunOS 4.1.
+
 ## Building
 
-You need SunOS 4.1.x with the SunView libraries
+You need SunOS 4.1.x or 3.5 with the SunView libraries
 (`libsuntool`, `libsunwindow`, `libpixrect`).
 
 ```
@@ -88,13 +101,18 @@ cd src
 make                    # the SunOS /bin/cc (K&R)
 make CC=gcc             # or gcc
 make LDFLAGS=-Bstatic   # static binary, like the release
+make sunos3             # SunOS 3.5 (Sun-3), its /bin/cc
 ```
+
+SunOS 3.5 has no shared libraries, so its binary is always static.
 
 ## Tested on
 
 - SunOS 4.1.4 on a SPARCstation 5 (sun4m) with a cgthree, 8 bit
   color at 1280x1024
 - `-mono` on the same 8 bit screen
+- SunOS 3.5 on an emulated Sun-3/160 (TME) with a bwtwo, 1 bit at
+  1152x900
 
 Not tested yet on a real 1 bit framebuffer (bwtwo).
 

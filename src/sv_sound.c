@@ -16,7 +16,9 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #ifdef sun
-#include <sys/stropts.h>
+#ifndef SUNOS3
+#include <sys/stropts.h>		/* SunOS 3.5 has no STREAMS */
+#endif
 #endif
 
 typedef struct SvSound {

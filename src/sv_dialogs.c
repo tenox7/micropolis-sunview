@@ -14,7 +14,12 @@
  */
 
 #include "sv.h"
+#ifdef SUNOS3
+#include <sys/dir.h>			/* SunOS 3.5 has no <dirent.h> */
+#define dirent direct
+#else
 #include <dirent.h>
+#endif
 
 extern char *getcwd();
 
@@ -37,6 +42,58 @@ dl_strdup(s)
 
 #define AL_LINES	14
 #define AL_COLS		64
+
+#ifdef SUNOS3
+static void fl_center();
+static Panel_item fl_add_button();
+static int fl_run();
+
+/* SunOS 3.5 has no alert_prompt(): the same box as a small modal frame,
+ * run like the file chooser.  1 for the yes button. */
+static int
+al_frame(ptrs, n, yes, no)
+  char **ptrs, *yes, *no;
+  int n;
+{
+  Frame f;
+  Panel p;
+  Pixfont *pf;
+  int i, cw, ch, bw, y, r;
+
+  f = window_create((Window)NULL, FRAME,
+		    FRAME_LABEL, "Micropolis",
+		    FRAME_SHOW_LABEL, TRUE,
+		    0);
+  if (f == NULL) {
+    fprintf(stderr, "micropolis: %s\n", n > 0 ? ptrs[0] : "");
+    return no == NULL;
+  }
+  p = window_create(f, PANEL, 0);
+  pf = (Pixfont *)window_get(p, WIN_FONT);
+  cw = pf->pf_defaultsize.x;
+  ch = pf->pf_defaultsize.y;
+  y = ch;
+  for (i = 0; i < n; i++, y += ch + 2)
+    panel_create_item(p, PANEL_MESSAGE,
+		      PANEL_ITEM_X, 2 * cw, PANEL_ITEM_Y, y,
+		      PANEL_LABEL_STRING, ptrs[i],
+		      0);
+  y += ch;
+  bw = strlen(yes);
+  if (no != NULL && strlen(no) > bw)
+    bw = strlen(no);
+  bw += 2;
+  fl_add_button(p, yes, 2 * cw, y, bw, 1);
+  if (no != NULL)
+    fl_add_button(p, no, (bw + 8) * cw, y, bw, 0);
+  window_fit(p);
+  window_fit(f);
+  r = fl_run(f);
+  window_set(f, FRAME_NO_CONFIRM, TRUE, 0);
+  window_destroy(f);
+  return r == 1;
+}
+#endif
 
 static int
 al_box(msg, yes, no)
@@ -74,6 +131,9 @@ al_box(msg, yes, no)
   }
   ptrs[n] = NULL;
 
+#ifdef SUNOS3
+  return al_frame(ptrs, n, yes, no);
+#else
   bzero((char *)&ev, sizeof(ev));
   SvBusy++;
   if (no != NULL)
@@ -95,6 +155,7 @@ al_box(msg, yes, no)
     return no == NULL;
   }
   return result == ALERT_YES;
+#endif
 }
 
 
@@ -835,7 +896,7 @@ trademark or publicity rights are granted.\n\
 \n\
 Original game design by Will Wright.  Unix version and Tcl/Tk interface \
 by Don Hopkins.  This version has a native SunView interface for \
-SunOS 4.\n\
+SunOS 3.5 and 4.\n\
 \n\
 Pictures, sounds and notices are read from the DUX files in:\n\
 %s",

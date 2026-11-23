@@ -1,7 +1,9 @@
 #include "sim.h"
 
 #include <sys/types.h>
+#ifndef SUNOS3
 #include <stdlib.h>
+#endif
 
 #define SIM_RAND_MAX 0xffff
 

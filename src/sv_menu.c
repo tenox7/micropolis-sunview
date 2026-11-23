@@ -534,6 +534,12 @@ sv_menu_event(m, win, event)
 
   if (m == NULL)
     return;
+#ifdef SUNOS3
+  /* SunOS 3.5 menus follow only the right button unless told */
+  if (event_id(event) == MS_LEFT || event_id(event) == MS_MIDDLE)
+    cmd = (int)menu_show(m, win, event, MENU_BUTTON, event_id(event), 0);
+  else
+#endif
   cmd = (int)menu_show(m, win, event, 0);
   if (cmd != 0)
     sv_do_command(cmd);

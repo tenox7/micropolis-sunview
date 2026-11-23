@@ -14,7 +14,9 @@
 #include <suntool/sunview.h>
 #include <suntool/canvas.h>
 #include <suntool/panel.h>
-#include <suntool/alert.h>
+#ifndef SUNOS3
+#include <suntool/alert.h>	/* SunOS 3.5 has no alerts */
+#endif
 #include <suntool/scrollbar.h>
 #include <sunwindow/cms.h>
 
@@ -105,8 +107,10 @@ extern int SvSpriteFrames[OBJN];
  * evaluation and graph windows are subframes of it.
  */
 
+#ifndef MAP_W				/* sim.h has them too */
 #define MAP_W		(WORLD_X * 3)	/* the overall map, 3x3 per tile */
 #define MAP_H		(WORLD_Y * 3)
+#endif
 #define SV_TOOLS_W	132		/* the DUX tool palette */
 #define SV_TOOLS_H	400
 

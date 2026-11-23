@@ -1,9 +1,10 @@
-# Makefile -- Micropolis for SunView (SunOS 4.1)
+# Makefile -- Micropolis for SunView (SunOS 4.1 and SunOS 3.5)
 #
 #   make              build with the SunOS /bin/cc (K&R)
 #   make CC=gcc       build with gcc
 #   make LDFLAGS=-Bstatic
 #                     static binary, runs on any SunOS 4.1.x with SunView
+#   make sunos3       build on SunOS 3.5 (Sun-3) with its /bin/cc
 #
 # Run it from SunView with SIMHOME pointing at the DUX SimCity directory
 # (the one with images/, res/ and cities/):
@@ -12,7 +13,8 @@
 
 CC	= cc
 OPT	= -O
-CFLAGS	= $(OPT) -Iheaders
+DEFS	=
+CFLAGS	= $(OPT) $(DEFS) -Iheaders
 LDFLAGS	=
 LIBS	= -lsuntool -lsunwindow -lpixrect -lm
 
@@ -34,6 +36,10 @@ micropolis: $(OBJS)
 $(ENGINE): $(HDRS)
 $(FRONT): $(HDRS) sv.h
 g_ani.o: headers/animtab.h
+
+# SunOS 3.5 has no alerts, STREAMS, <stdlib.h> or <dirent.h>
+sunos3:
+	$(MAKE) DEFS=-DSUNOS3 micropolis
 
 clean:
 	rm -f micropolis $(OBJS) core
