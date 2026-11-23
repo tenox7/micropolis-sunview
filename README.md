@@ -25,6 +25,16 @@ with a monochrome framebuffer:
 
 ## Installation
 
+All in one:
+[micropolis-sunview.tar.lz](https://files.42718.net/mirror/tenox/apps/simcity/micropolis-sunview.tar.lz)
+has both binaries, the DUX SimCity demo files and the source in one
+`SimCity` folder. Unpack it with `lzip -d`, copy
+`micropolis-sunview.tar` to the Sun, and unpack it there with
+`cd /usr; tar xf micropolis-sunview.tar` (or in `/usr/local`).
+Its `README.micropolis` tells the rest.
+
+Or step by step:
+
 1. Download the demo of
    [DUX SimCity for Unix](https://web.archive.org/web/19970714233306/http://www.dux.com/demo.html),
    also mirrored [here](http://osarchive.org/apps/simcity) and
