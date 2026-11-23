@@ -91,6 +91,8 @@ SunOS 3.5 has no alerts, STREAMS, `<stdlib.h>` or `<dirent.h>`, so:
 
 Menus open with any mouse button, as on SunOS 4.1.
 
+![Micropolis on SunOS 3.5](screenshots/sunos35.png)
+
 ## Building
 
 You need SunOS 4.1.x or 3.5 with the SunView libraries
