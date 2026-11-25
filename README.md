@@ -21,7 +21,7 @@ program.
 It also has a black and white (1 bit) mode, for Sun workstations
 with a monochrome framebuffer:
 
-![Micropolis in black and white](screenshots/mono.png)
+![Micropolis in black and white](screenshots/sunos35.png)
 
 ## Installation
 
@@ -89,19 +89,6 @@ patterns for the map overlays.
 
 Sound effects play through `/dev/audio`.
 Set `AUDIODEV` to use another device.
-
-## SunOS 3.5
-
-The same source builds on SunOS 3.5 (Sun-3) with `make sunos3`.
-SunOS 3.5 has no alerts, STREAMS, `<stdlib.h>` or `<dirent.h>`, so:
-
-- Yes or no questions (such as Quit) come up in a small window
-  with two buttons, not in an alert.
-- There is no sound: Sun-3 machines have no `/dev/audio`.
-
-Menus open with any mouse button, as on SunOS 4.1.
-
-![Micropolis on SunOS 3.5](screenshots/sunos35.png)
 
 ## Building
 
