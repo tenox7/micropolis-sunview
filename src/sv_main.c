@@ -196,8 +196,9 @@ engine_init()
   SvMap->visible = 1;
   SvMap->map_state = ALMAP;
   SvMap->show_editors = 1;
-  SvMap->i_width = SvMap->w_width = SvMap->m_width = WORLD_X * 3;
-  SvMap->i_height = SvMap->w_height = SvMap->m_height = WORLD_Y * 3;
+  SvMap->i_width = SvMap->w_width = SvMap->m_width = WORLD_X * SvMapScale;
+  SvMap->i_height = SvMap->w_height = SvMap->m_height =
+    WORLD_Y * SvMapScale;
   SvMap->tool_x_const = SvMap->tool_y_const = -1;
   sim->map = SvMap;
   sim->maps = 1;
@@ -269,11 +270,14 @@ ui_create(argc, argv)
   char **argv;
 {
   Rect *r;
-  int i, x, w, h;
+  int i, x, w, h, mono = 0;
 
-  for (i = 1; i < *argc; i++)
+  for (i = 1; i < *argc; i++) {
     if (strcmp(argv[i], "-Wp") == 0 || strcmp(argv[i], "-position") == 0)
       ui_placed = 1;
+    if (strcmp(argv[i], "-mono") == 0)
+      mono = 1;
+  }
 
   SvFrame = window_create((Window)NULL, FRAME,
 			  FRAME_LABEL, "Micropolis Controls",
@@ -290,6 +294,8 @@ ui_create(argc, argv)
     SvScreenH = r->r_height;
   }
   sv_head_create();
+  /* color or black and white now: the map and the palette are sized by it */
+  SvColor = (!mono && sv_head_depth() >= 8);
   if (!ui_placed)
     window_set(SvFrame, WIN_X, 5, WIN_Y, 5, 0);
 
@@ -331,15 +337,11 @@ ui_show()
 }
 
 
-/* Decide color or mono from the editor's pixwin, load the art, install the
- * colormap on every canvas. */
+/* Load the art (ui_create decided color or mono), install the colormap on
+ * every canvas. */
 static void
-art_init(force_mono)
-  int force_mono;
+art_init()
 {
-  Pixwin *pw = canvas_pixwin(SvEditorCanvas);
-
-  SvColor = (!force_mono && pw->pw_pixrect->pr_depth >= 8);
   sv_init_colors();
   sv_load_art();
   sv_tools_load();
@@ -753,7 +755,7 @@ main(argc, argv)
   char **argv;
 {
   char *loadfile = NULL;
-  int scenario = 0, seed = -1, force_mono = 0, i;
+  int scenario = 0, seed = -1, i;
 
   if (getenv("SV_DEBUG"))
     SvDebug = 1;
@@ -774,7 +776,7 @@ main(argc, argv)
     } else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) {
       seed = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-mono") == 0) {
-      force_mono = 1;
+      ;					/* ui_create saw it */
     } else if (strcmp(argv[i], "-nosound") == 0) {
       SvSoundWanted = 0;
     } else if (strcmp(argv[i], "-debug") == 0) {
@@ -787,7 +789,7 @@ main(argc, argv)
   }
   sv_log("SIMHOME %s\n", SvHome);
 
-  art_init(force_mono);
+  art_init();
   engine_init();
   SvReady = 1;
 

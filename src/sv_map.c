@@ -7,18 +7,21 @@
  * Laid out like the DUX map window (res/wmap.tcl): Zones and Overlays
  * menus with the overlay legend, and the map, 3 pixels per tile.  The map
  * is composed as colormap indices (the drawing rules come from the
- * original g_map.c and g_smmaps.c), then copied to an 8 bit pixrect.  In
- * monochrome mode it is composed as gray levels from the DUX gray tiles,
- * with the overlays in the black and white patterns of the DUX legend
- * images, then ordered-dithered to a 1 bit pixrect.  The editor's visible
- * area is drawn on top as a rectangle.  Click or drag to move the editor;
- * the right button has every map in one menu.
+ * original g_map.c and g_smmaps.c), then copied to an 8 bit pixrect.
+ *
+ * In black and white the map is smaller and simpler, as in Micropolis for
+ * the DMD 5620: a street map, 2 pixels per tile, drawn as 1 bit patterns
+ * (below), with its own legend for the overlays.
+ *
+ * The editor's visible area is drawn on top as a rectangle.  Click or drag
+ * to move the editor; the right button has every map in one menu.
  */
 
 #include "sv.h"
 
 Canvas SvMapCanvas = NULL;
 Frame SvMapFrame = NULL;
+int SvMapScale = 3;			/* pixels per tile; 2 in black and white */
 
 static SvBar *mp_bar = NULL;
 static SvImage *mp_legend[3];		/* none, low-high, minus-plus */
@@ -30,9 +33,10 @@ static SvBarItem mp_items[] = {
 };
 
 static Pixwin *mp_pw = NULL;
+static int mp_w = MAP_W, mp_h = MAP_H;	/* the map's size on the screen */
 static Pixrect *mp_out = NULL;		/* map + view rectangle, screen depth */
-static unsigned char *mp_img = NULL;	/* composed map: colormap indices,
-					 * gray levels in monochrome */
+static unsigned char *mp_img = NULL;	/* composed map: colormap indices */
+static Pixrect *mp_mono = NULL;		/* composed map in black and white */
 static int mp_dirty = 1;		/* recompose */
 static int mp_view_dirty = 1;		/* copy to the screen again */
 static int mp_tool_dirty = 0;		/* the player edited the city */
@@ -54,27 +58,6 @@ static short val_color[9] = {
   -1, SIMCOLOR_LIGHTGRAY, SIMCOLOR_YELLOW, SIMCOLOR_ORANGE, SIMCOLOR_RED,
   SIMCOLOR_DARKGREEN, SIMCOLOR_LIGHTGREEN, SIMCOLOR_ORANGE, SIMCOLOR_YELLOW
 };
-
-/* Monochrome overlay patterns, 4x4, one row per (y & 3), bit 3 is x & 3
- * == 0, 1 = black.  They are the mono colors of the DUX legend images
- * (legendmm.xpm, legendpm.xpm), so the map matches its legend: like the
- * original valGrayMap, low values are dark and high values white. */
-static unsigned char mono_pat[5][4] = {
-  { 0x0, 0x0, 0x0, 0x0 },		/* white */
-  { 0x4, 0xa, 0x1, 0xa },		/* light, 3/8 black */
-  { 0xa, 0x5, 0xa, 0x5 },		/* half */
-  { 0xe, 0x5, 0xb, 0x5 },		/* dark, 5/8 black */
-  { 0xf, 0xf, 0xf, 0xf }		/* black */
-};
-static short val_pat[9] = {
-  -1, 3, 2, 1, 0,			/* low .. very high */
-  1, 0, 3, 4				/* plus, very plus, minus, very minus */
-};
-
-/* monochrome power map levels (g_smmaps.c) */
-#define GRAY_POWERED	255
-#define GRAY_UNPOWERED	0
-#define GRAY_CONDUCTIVE	127
 
 static char *mp_names[NMAPS] = {
   "All", "Residential", "Commercial", "Industrial", "Power Grid",
@@ -110,7 +93,7 @@ sv_map_state()
 }
 
 
-/* ---- composing ------------------------------------------------------------ */
+/* ---- composing in color --------------------------------------------------- */
 
 static int
 get_ci(x)
@@ -198,18 +181,9 @@ static void
 draw_power()
 {
   register unsigned short tile;
-  int x, y, t, powered, unpowered, conductive;
+  int x, y, t;
   unsigned short *mp;
 
-  if (SvColor) {
-    powered = SIMCOLOR_RED;
-    unpowered = SIMCOLOR_LIGHTBLUE;
-    conductive = SIMCOLOR_LIGHTGRAY;
-  } else {
-    powered = GRAY_POWERED;
-    unpowered = GRAY_UNPOWERED;
-    conductive = GRAY_CONDUCTIVE;
-  }
   for (x = 0; x < WORLD_X; x++) {
     mp = (unsigned short *)Map[x];
     for (y = 0; y < WORLD_Y; y++) {
@@ -220,9 +194,9 @@ draw_power()
       if (t <= 63) {
 	put3x3(x, y, &SvSmallTiles[t * 9]);
       } else if (tile & ZONEBIT) {
-	fill3x3(x, y, (tile & PWRBIT) ? powered : unpowered);
+	fill3x3(x, y, (tile & PWRBIT) ? SIMCOLOR_RED : SIMCOLOR_LIGHTBLUE);
       } else if (tile & CONDBIT) {
-	fill3x3(x, y, conductive);
+	fill3x3(x, y, SIMCOLOR_LIGHTGRAY);
       } else {
 	put3x3(x, y, &SvSmallTiles[0]);
       }
@@ -231,15 +205,13 @@ draw_power()
 }
 
 
-/* An overlay square: stippled color, or in monochrome the legend's
- * pattern as pure black (0) and white (255), which the dither keeps. */
+/* An overlay square: stippled color. */
 static void
 maybe_rect(val, x, y, w, h)
   int val, x, y, w, h;
 {
   register unsigned char *d;
   register int i, j, c;
-  unsigned char *pat;
 
   if (val == VAL_NONE)
     return;
@@ -249,21 +221,11 @@ maybe_rect(val, x, y, w, h)
     h = MAP_H - y;
   if (w <= 0 || h <= 0)
     return;
-  if (SvColor) {
-    c = val_color[val];
-    for (j = 0; j < h; j++) {
-      d = mp_img + (y + j) * MAP_W + x;
-      for (i = (x + y + j) & 1; i < w; i += 2)
-	d[i] = c;
-    }
-  } else {
-    pat = mono_pat[val_pat[val]];
-    for (j = 0; j < h; j++) {
-      d = mp_img + (y + j) * MAP_W + x;
-      c = pat[(y + j) & 3];
-      for (i = 0; i < w; i++)
-	d[i] = (c & (8 >> ((x + i) & 3))) ? 0 : 255;
-    }
+  c = val_color[val];
+  for (j = 0; j < h; j++) {
+    d = mp_img + (y + j) * MAP_W + x;
+    for (i = (x + y + j) & 1; i < w; i += 2)
+      d[i] = c;
   }
 }
 
@@ -345,6 +307,242 @@ draw_compose()
 }
 
 
+/* ---- composing in black and white -----------------------------------------
+ *
+ * The street map of Micropolis for the DMD 5620, 2 pixels per tile: roads,
+ * rails and water black, trees light dots, everything else white.  The
+ * zone maps show their zones black, roads grey and water dots.  The power
+ * map shows what conducts: black with power, grey without.  An overlay
+ * shows 3 levels of the highest value on the map now: light dots, grey and
+ * black.  A tile is a 2x2 pattern: bit 3 is its top left pixel, 2 top
+ * right, 1 bottom left, 0 bottom right; 1 is black.  Lines are never dots:
+ * a road 1 tile wide would get lost.
+ */
+
+#define P_NONE	0
+#define P_DOTS	8			/* 10/00 */
+#define P_GREY	9			/* 10/01 */
+#define P_FULL	15
+
+#define C_LAND	0
+#define C_WATER	1
+#define C_TREES	2
+#define C_ROAD	3
+#define C_WIRE	4
+#define C_RES	5
+#define C_COM	6
+#define C_IND	7
+#define C_OTHER	8
+
+static unsigned char mo_class[LOMASK + 1];	/* tile -> C_* */
+static int mo_classes_made = 0;
+static int mo_max;			/* the overlay's highest value */
+
+/* the "All" map, by class */
+static unsigned char mo_all[] = {
+  P_NONE, P_FULL, P_DOTS, P_FULL, P_NONE, P_NONE, P_NONE, P_NONE, P_NONE
+};
+
+
+static void
+mo_classes()
+{
+  int t, k;
+
+  for (t = 0; t <= LOMASK; t++) {
+    if (t >= 2 && t <= 20)
+      k = C_WATER;
+    else if (t >= 21 && t <= 43)
+      k = C_TREES;
+    else if (t < 64)
+      k = C_LAND;		/* dirt, rubble, flood, radiation, fire */
+    else if (t <= 206 || (t >= 224 && t <= 238) || (t >= 828 && t <= 831) ||
+	     (t >= 948 && t <= 951))
+      k = C_ROAD;		/* roads, rails, bridges */
+    else if (t >= 208 && t <= 222)
+      k = C_WIRE;
+    else if (t >= 240 && t <= 422)
+      k = C_RES;
+    else if (t >= 423 && t <= 611)
+      k = C_COM;
+    else if ((t >= 612 && t <= 692) || (t >= 844 && t <= 851))
+      k = C_IND;
+    else
+      k = C_OTHER;		/* port, airport, power, police, fire, stadium */
+    mo_class[t] = k;
+  }
+  mo_classes_made = 1;
+}
+
+
+/* The overlay's value at tile x, y.  The big maps hold one value for 2x2
+ * tiles, the small ones for 8x8. */
+static int
+mo_val(k, x, y)
+  int k, x, y;
+{
+  switch (k) {
+  case PDMAP: return PopDensity[x >> 1][y >> 1];
+  case RGMAP: return RateOGMem[x >> 3][y >> 3];
+  case TDMAP: return TrfDensity[x >> 1][y >> 1];
+  case PLMAP: return PollutionMem[x >> 1][y >> 1];
+  case CRMAP: return CrimeMem[x >> 1][y >> 1];
+  case LVMAP: return LandValueMem[x >> 1][y >> 1];
+  case FIMAP: return FireRate[x >> 3][y >> 3];
+  case POMAP: return PoliceMapEffect[x >> 3][y >> 3];
+  }
+  return 0;
+}
+
+
+static int
+mo_getmax(k)
+  int k;
+{
+  int x, y, v, m = 0;
+  int step = (k == RGMAP || k == FIMAP || k == POMAP) ? 8 : 2;
+
+  for (x = 0; x < WORLD_X; x += step)
+    for (y = 0; y < WORLD_Y; y += step)
+      if ((v = mo_val(k, x, y)) > m)
+	m = v;
+  return m;
+}
+
+
+/* 3 levels of the highest value: 1 below half of it, 2 below 3/4, 3 above. */
+static int
+mo_level(v)
+  int v;
+{
+  if (v <= 0 || mo_max <= 0)
+    return 0;
+  v = (v * 4) / (mo_max + 1);
+  return v < 1 ? 1 : v > 3 ? 3 : v;
+}
+
+
+/* The pattern of tile x, y on map k. */
+static int
+mo_pat(k, x, y)
+  int k, x, y;
+{
+  int v = ((unsigned short *)Map[x])[y], c = mo_class[v & LOMASK];
+
+  switch (k) {
+  case ALMAP:
+    return mo_all[c];
+  case REMAP:
+  case COMAP:
+  case INMAP:
+    return c == C_RES + k - REMAP ? P_FULL : c == C_ROAD ? P_GREY :
+      c == C_WATER ? P_DOTS : P_NONE;
+  case PRMAP:
+    if (v & CONDBIT)
+      return (PowerMap[POWERWORD(x, y)] & (1 << (x & 15))) ? P_FULL : P_GREY;
+    return c == C_WATER ? P_DOTS : P_NONE;
+  case RDMAP:
+    return c == C_ROAD ? P_FULL : c == C_WATER ? P_DOTS : P_NONE;
+  }
+  switch (mo_level(mo_val(k, x, y))) {
+  case 1: return P_DOTS;
+  case 2: return P_GREY;
+  case 3: return P_FULL;
+  }
+  return P_NONE;
+}
+
+
+/* The map into mp_mono: 4 tiles a byte, 2 rows of pixels a tile. */
+static void
+mo_compose()
+{
+  struct mpr_data *md = mpr_d(mp_mono);
+  unsigned char *d = (unsigned char *)md->md_image;
+  int lb = md->md_linebytes, k = mp_state, x, y, i, p, top, bot;
+
+  if (!mo_classes_made)
+    mo_classes();
+  if (k < 0 || k >= DYMAP)
+    k = ALMAP;
+  if (k >= PDMAP)
+    mo_max = mo_getmax(k);
+  for (y = 0; y < WORLD_Y; y++, d += 2 * lb)
+    for (x = 0; x < WORLD_X; x += 4) {
+      top = bot = 0;
+      for (i = 0; i < 4 && x + i < WORLD_X; i++) {
+	p = mo_pat(k, x + i, y);
+	top |= ((p >> 2) & 3) << (6 - 2 * i);
+	bot |= (p & 3) << (6 - 2 * i);
+      }
+      d[x >> 2] = top;
+      d[lb + (x >> 2)] = bot;
+    }
+}
+
+
+/* The legend of the overlays: MIN, the 3 levels, MAX, in a 5 pixel font. */
+static char *mo_min[5] = {
+  "#...#.###.#..#",
+  "##.##..#..##.#",
+  "#.#.#..#..#.##",
+  "#...#..#..#..#",
+  "#...#.###.#..#"
+};
+static char *mo_maxs[5] = {
+  "#...#..##..#...#",
+  "##.##.#..#..#.#.",
+  "#.#.#.####...#..",
+  "#...#.#..#..#.#.",
+  "#...#.#..#.#...#"
+};
+
+#define LG_BOX	40			/* 3 swatches of 12, 4 lines */
+#define LG_H	12
+#define LG_W	(14 + 4 + LG_BOX + 4 + 16)
+
+
+static void
+mo_text(pr, x, y, rows)
+  Pixrect *pr;
+  int x, y;
+  char **rows;
+{
+  int i, j;
+
+  for (j = 0; j < 5; j++)
+    for (i = 0; rows[j][i]; i++)
+      if (rows[j][i] == '#')
+	pr_put(pr, x + i, y + j, 1);
+}
+
+
+static void
+mo_legend(b)
+  SvBar *b;
+{
+  static int pat[3] = { P_DOTS, P_GREY, P_FULL };
+  int x = b->w - LG_W - 6, y = (b->h - LG_H) / 2, sx, i, j, k;
+
+  if (x < b->end)
+    return;
+  mo_text(b->buf, x, y + (LG_H - 5) / 2, mo_min);
+  x += 14 + 4;
+  sv_fill(b->buf, x, y, LG_BOX, LG_H, SIMCOLOR_BLACK);
+  for (k = 0; k < 3; k++) {
+    sx = x + 1 + k * 13;
+    sv_fill(b->buf, sx, y + 1, 12, LG_H - 2, SIMCOLOR_WHITE);
+    for (j = 0; j < LG_H - 2; j++)
+      for (i = 0; i < 12; i++)
+	if (pat[k] & (8 >> (((j & 1) << 1) | (i & 1))))
+	  pr_put(b->buf, sx + i, y + 1 + j, 1);
+  }
+  mo_text(b->buf, x + LG_BOX + 4, y + (LG_H - 5) / 2, mo_maxs);
+}
+
+
+/* ---- to the screen ---------------------------------------------------------- */
+
 /* Composed map -> the output pixrect, plus the editor rectangle: black
  * and white (DUX: white, yellow, black) so it shows on any map. */
 static void
@@ -352,44 +550,27 @@ build_out()
 {
   struct mpr_data *md = mpr_d(mp_out);
   unsigned char *d, *s;
-  int x, y, lb = md->md_linebytes, bits;
-  unsigned char *dith;
+  int y, lb = md->md_linebytes;
   SimView *v = SvEditor;
   int rx, ry, rw, rh;
 
-  d = (unsigned char *)md->md_image;
-  s = mp_img;
   if (SvColor) {
+    d = (unsigned char *)md->md_image;
+    s = mp_img;
     for (y = 0; y < MAP_H; y++) {
       bcopy((char *)s, (char *)d, MAP_W);
       s += MAP_W;
       d += lb;
     }
   } else {
-    for (y = 0; y < MAP_H; y++) {
-      dith = SvDither[y & 3];
-      for (x = 0; x < MAP_W; x += 8) {
-	bits = 0;
-	if (s[x]     < dith[0]) bits |= 0x80;
-	if (s[x + 1] < dith[1]) bits |= 0x40;
-	if (s[x + 2] < dith[2]) bits |= 0x20;
-	if (s[x + 3] < dith[3]) bits |= 0x10;
-	if (s[x + 4] < dith[0]) bits |= 0x08;
-	if (s[x + 5] < dith[1]) bits |= 0x04;
-	if (s[x + 6] < dith[2]) bits |= 0x02;
-	if (s[x + 7] < dith[3]) bits |= 0x01;
-	d[x >> 3] = bits;
-      }
-      s += MAP_W;
-      d += lb;
-    }
+    pr_rop(mp_out, 0, 0, mp_w, mp_h, PIX_SRC, mp_mono, 0, 0);
   }
 
   if (v != NULL && v->w_width > 0) {
-    rx = ((v->pan_x - (v->w_width >> 1)) * 3) >> 4;
-    ry = ((v->pan_y - (v->w_height >> 1)) * 3) >> 4;
-    rw = (v->w_width * 3) >> 4;
-    rh = (v->w_height * 3) >> 4;
+    rx = ((v->pan_x - (v->w_width >> 1)) * SvMapScale) >> 4;
+    ry = ((v->pan_y - (v->w_height >> 1)) * SvMapScale) >> 4;
+    rw = (v->w_width * SvMapScale) >> 4;
+    rh = (v->w_height * SvMapScale) >> 4;
     if (!SvColor)
       sv_frame_rect(mp_out, rx - 2, ry - 2, rw + 4, rh + 4, SIMCOLOR_WHITE, 1);
     sv_frame_rect(mp_out, rx - 1, ry - 1, rw + 2, rh + 2, SIMCOLOR_BLACK, 1);
@@ -401,22 +582,26 @@ build_out()
 static void
 mp_blit()
 {
-  pw_rop(mp_pw, 0, 0, MAP_W, MAP_H, PIX_SRC, mp_out, 0, 0);
+  pw_rop(mp_pw, 0, 0, mp_w, mp_h, PIX_SRC, mp_out, 0, 0);
 }
 
 
 static void
 mp_alloc()
 {
-  if (mp_img != NULL)
+  if (mp_out != NULL)
     return;
-  mp_img = (unsigned char *)malloc(MAP_W * MAP_H + 8);	/* +8: dither reads */
-  mp_out = mem_create(MAP_W, MAP_H, SvColor ? 8 : 1);
-  if (mp_img == NULL || mp_out == NULL) {
+  mp_out = mem_create(mp_w, mp_h, SvColor ? 8 : 1);
+  if (SvColor) {
+    if ((mp_img = (unsigned char *)malloc(MAP_W * MAP_H)) != NULL)
+      bzero((char *)mp_img, MAP_W * MAP_H);
+  } else {
+    mp_mono = mem_create(mp_w, mp_h, 1);
+  }
+  if (mp_out == NULL || (SvColor ? mp_img == NULL : mp_mono == NULL)) {
     fprintf(stderr, "micropolis: out of memory for the map\n");
     exit(1);
   }
-  bzero((char *)mp_img, MAP_W * MAP_H + 8);
 }
 
 
@@ -438,7 +623,10 @@ sv_map_update()
   for (i = 0; i < NMAPS; i++)
     NewMapFlags[i] = 0;
   if (must) {
-    draw_compose();
+    if (SvColor)
+      draw_compose();
+    else
+      mo_compose();
     mp_dirty = 0;
     mp_view_dirty = 1;
     mp_last_compose = SvTicks;
@@ -508,7 +696,7 @@ mp_repaint(canvas, pw, area)
   Rectlist *area;
 {
   if (!SvReady || mp_out == NULL) {
-    pw_writebackground(pw, 0, 0, MAP_W, MAP_H, PIX_SRC);
+    pw_writebackground(pw, 0, 0, mp_w, mp_h, PIX_SRC);
     return;
   }
   mp_blit();
@@ -594,7 +782,7 @@ static void
 mp_goto(event)
   Event *event;
 {
-  int x = event_x(event) / 3, y = event_y(event) / 3;
+  int x = event_x(event) / SvMapScale, y = event_y(event) / SvMapScale;
 
   if (x < 0) x = 0;
   if (y < 0) y = 0;
@@ -650,6 +838,11 @@ mp_bar_extra(b)
 {
   SvImage *img;
 
+  if (!SvColor) {
+    if (mp_state >= PDMAP && mp_state <= POMAP && mp_state != PRMAP)
+      mo_legend(b);
+    return;
+  }
   switch (mp_state) {
   case PDMAP: case TDMAP: case PLMAP: case CRMAP: case LVMAP:
   case FIMAP: case POMAP:
@@ -678,18 +871,21 @@ mp_done(frame)
 void
 sv_map_create()
 {
+  SvMapScale = SvColor ? 3 : 2;
+  mp_w = WORLD_X * SvMapScale;
+  mp_h = WORLD_Y * SvMapScale;
   SvMapFrame = window_create(SvFrame, FRAME,
 			     FRAME_LABEL, mp_titles[ALMAP],
 			     FRAME_SHOW_LABEL, TRUE,
 			     FRAME_DONE_PROC, mp_done,
 			     WIN_SHOW, FALSE,
 			     0);
-  mp_bar = sv_bar_create(SvMapFrame, MAP_W, mp_items, mp_bar_extra);
+  mp_bar = sv_bar_create(SvMapFrame, mp_w, mp_items, mp_bar_extra);
   SvMapCanvas = window_create(SvMapFrame, CANVAS,
 			      WIN_X, 0,
 			      WIN_BELOW, mp_bar->canvas,
-			      WIN_WIDTH, MAP_W,
-			      WIN_HEIGHT, MAP_H,
+			      WIN_WIDTH, mp_w,
+			      WIN_HEIGHT, mp_h,
 			      CANVAS_RETAINED, FALSE,
 			      CANVAS_REPAINT_PROC, mp_repaint,
 			      WIN_EVENT_PROC, mp_event,
@@ -710,6 +906,8 @@ sv_map_create()
 void
 sv_map_load()
 {
+  if (!SvColor)
+    return;			/* the 1 bit map draws its own legend */
   mp_legend[0] = sv_load_image("legendn.xpm");
   mp_legend[1] = sv_load_image("legendmm.xpm");
   mp_legend[2] = sv_load_image("legendpm.xpm");

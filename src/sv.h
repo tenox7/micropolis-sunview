@@ -36,7 +36,6 @@ extern unsigned char SvRed[SV_CMS_SIZE];
 extern unsigned char SvGreen[SV_CMS_SIZE];
 extern unsigned char SvBlue[SV_CMS_SIZE];
 extern unsigned char SvGray[SV_CMS_SIZE];	/* luminance of each entry */
-extern unsigned char SvDither[4][4];	/* ordered dither thresholds */
 
 /* UI colors (indices into the colormap) */
 extern int SvUiBack;			/* DUX gray #b0b0b0 */
@@ -93,8 +92,8 @@ extern int sv_wrap();			/* (font, str, w, fn, arg) lines */
 
 /* tile art */
 extern Pixrect *SvBigTiles;		/* 16 x (16 * TILE_COUNT) */
-extern unsigned char *SvSmallTiles;	/* 3x3 per tile, 9 bytes: color index,
-					 * or gray 0..255 in monochrome */
+extern unsigned char *SvSmallTiles;	/* 3x3 per tile, 9 bytes: color index
+					 * (color only) */
 extern SvImage *SvSprites[OBJN][16];	/* sprite frames, [type][frame-1] */
 extern int SvSpriteFrames[OBJN];
 
@@ -117,6 +116,7 @@ extern int SvSpriteFrames[OBJN];
 extern Frame SvFrame;			/* base frame: Micropolis Controls */
 extern Frame SvEditorFrame;		/* Micropolis Editor */
 extern Frame SvMapFrame;		/* Micropolis Overall Map */
+extern int SvMapScale;			/* map pixels per tile: 3, 2 in 1 bit */
 extern Canvas SvEditorCanvas, SvMapCanvas, SvToolCanvas;
 extern SimView *SvEditor;		/* the engine's editor view */
 extern SimView *SvMap;			/* the engine's map view */
@@ -200,6 +200,7 @@ extern void sv_editor_pan_by();		/* (dx, dy) pixels */
 extern void sv_editor_key();		/* (event) */
 extern void sv_auto_goto();		/* (tile x, tile y) */
 extern void sv_editor_message();	/* (str) the label over the editor */
+extern void sv_editor_bar_redraw();	/* the tool label changed */
 extern void sv_editor_title();		/* city name changed */
 extern void sv_editor_cms();
 extern void sv_editor_show_tools();	/* (on) the palette panel */
@@ -223,12 +224,14 @@ extern void sv_map_load();		/* the legends */
 /* sv_tools.c */
 extern void sv_tools_create();		/* (frame, below) the palette */
 extern void sv_tools_load();
+extern char *sv_tool_label();		/* (state) name and cost */
 extern void sv_tools_redraw();
 extern void sv_tools_update();		/* per tick */
 extern void sv_select_tool();		/* (state) */
 
 /* sv_head.c */
 extern void sv_head_create();		/* the base frame's windows */
+extern int sv_head_depth();		/* the screen's depth */
 extern void sv_head_load();		/* its pictures */
 extern void sv_head_update();		/* per tick */
 extern void sv_head_redraw();

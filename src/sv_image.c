@@ -9,8 +9,7 @@
  * writes them to the screen).  In monochrome mode the pixrects are 1 bit
  * deep.  Images then use the mono ("m") colors that DUX drew into many of
  * its XPM files, else each color goes to black or white by its brightness,
- * as libXpm does on a 1 bit X screen.  The tile art comes from tilesbw.xpm
- * and the map's small tiles from the DUX gray tiles (res/hexa.388).
+ * as libXpm does on a 1 bit X screen.  The tile art comes from tilesbw.xpm.
  */
 
 #include "sv.h"
@@ -34,14 +33,6 @@ Pixrect *SvBigTiles = NULL;
 unsigned char *SvSmallTiles = NULL;
 SvImage *SvSprites[OBJN][16];
 int SvSpriteFrames[OBJN];
-
-/* 4x4 ordered dither thresholds, 0..255 */
-unsigned char SvDither[4][4] = {
-  {   8, 136,  40, 168 },
-  { 200,  72, 232, 104 },
-  {  56, 184,  24, 152 },
-  { 248, 120, 216,  88 }
-};
 
 /* the engine's 16 colors, in SIMCOLOR_* order (from the original w_x.c) */
 static unsigned char sim_rgb[16][3] = {
@@ -533,31 +524,6 @@ sv_free_image(img)
 
 /* ---- game art ---------------------------------------------------------- */
 
-/* The DUX gray small tiles for 1 bit screens: 4x3 bytes per tile (the 4th
- * byte of each row is padding), 0 black .. 255 white. */
-static int
-load_gray_tiles()
-{
-  char path[700];
-  unsigned char *buf;
-  int len, t, x, y;
-
-  sprintf(path, "%s/res/hexa.388", SvHome);
-  if ((buf = (unsigned char *)sv_read_file(path, &len)) == NULL)
-    return 0;
-  if (len < TILE_COUNT * 12) {
-    free((char *)buf);
-    return 0;
-  }
-  for (t = 0; t < TILE_COUNT; t++)
-    for (y = 0; y < 3; y++)
-      for (x = 0; x < 3; x++)
-	SvSmallTiles[t * 9 + y * 3 + x] = buf[t * 12 + y * 4 + x];
-  free((char *)buf);
-  return 1;
-}
-
-
 /* 1 bit sprites: black the white pixels at the sprite's edge, so that a
  * light sprite still shows on white land. */
 static void
@@ -597,7 +563,7 @@ outline_sprite(img)
 
 
 /* Big tiles (16x16), small map tiles (3x3) and the sprite frames.  The
- * small tiles hold colormap indices, or gray levels in monochrome. */
+ * small tiles hold colormap indices; the 1 bit map needs none. */
 void
 sv_load_art()
 {
@@ -619,8 +585,8 @@ sv_load_art()
     pr_destroy(img->mask);
   free((char *)img);
 
-  SvSmallTiles = (unsigned char *)malloc(TILE_COUNT * 9);
-  if (SvColor || !load_gray_tiles()) {
+  if (SvColor) {
+    SvSmallTiles = (unsigned char *)malloc(TILE_COUNT * 9);
     img = load_image("tilessm.xpm", SV_XPM_COLOR);	/* indices */
     if (img == NULL || img->h < 3 * TILE_COUNT) {
       for (t = 0; t < TILE_COUNT * 9; t++)
@@ -635,9 +601,6 @@ sv_load_art()
 	    SvSmallTiles[t * 9 + y * 3 + x] = p[(t * 3 + y) * lb + x];
       sv_free_image(img);
     }
-    if (!SvColor)
-      for (t = 0; t < TILE_COUNT * 9; t++)
-	SvSmallTiles[t] = SvGray[SvSmallTiles[t]];
   }
 
   for (type = 0; type < OBJN; type++) {

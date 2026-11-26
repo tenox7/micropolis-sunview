@@ -457,6 +457,15 @@ lg_event(canvas, event, arg)
 
 /* ==== the window ========================================================= */
 
+/* The screen's depth, from the info canvas: 1 on a black and white
+ * screen. */
+int
+sv_head_depth()
+{
+  return in_pw != NULL ? in_pw->pw_pixrect->pr_depth : 1;
+}
+
+
 void
 sv_head_create()
 {

@@ -7,6 +7,12 @@
  * The DUX palette (res/weditor.tcl): the tool's name and cost on top, then
  * the tool icons (ic*.xpm, ic*hi.xpm for the selected tool) at the DUX
  * places.  Clicking an icon picks the tool.
+ *
+ * In black and white the palette is the one of Micropolis for the DMD
+ * 5620: 16x16 1 bit icons drawn for that port (and here Chalk and
+ * Eraser), in 2 columns of framed buttons with a shadow, on a grey ground,
+ * the selected one inverted.  It is narrow, so the editor's menu bar shows
+ * the tool's name and cost.
  */
 
 #include "sv.h"
@@ -60,12 +66,427 @@ static int tl_dirty = 1;
 static int tl_state = -1;
 
 
+/* ---- the 1 bit palette ---------------------------------------------------- */
+
+#define MI_N		16		/* icon size */
+#define MI_MARGIN	6		/* around the buttons */
+#define MI_PITCH	24		/* button to button */
+#define MI_NUM		18		/* 9 rows of 2 */
+#define MI_W		(2 * MI_MARGIN + MI_PITCH + MI_N + 6)
+#define MI_X(i)		(MI_MARGIN + ((i) & 1) * MI_PITCH + 2)	/* icon i */
+#define MI_Y(i)		(MI_MARGIN + ((i) >> 1) * MI_PITCH + 2)
+
+/* the tools, row by row, left then right */
+static int mi_state[MI_NUM] = {
+  dozeState, roadState, wireState, rrState, parkState, residentialState,
+  commercialState, industrialState, policeState, fireState, stadiumState,
+  powerState, seaportState, airportState, nuclearState, queryState,
+  chalkState, eraserState
+};
+
+/* the icons, 16 rows each, # is black */
+static char *mi_art[MI_NUM * MI_N] = {
+  /* dozeState */
+  "................",
+  "................",
+  "........####....",
+  "........#..#.#..",
+  "........#..#.#..",
+  ".#......#######.",
+  ".##....#########",
+  ".#.#..##########",
+  ".#..############",
+  ".#.#..##########",
+  ".##.............",
+  "......#########.",
+  ".....#.#.#.#.#.#",
+  ".....#.#.#.#.#.#",
+  "......#########.",
+  "................",
+  /* roadState */
+  "................",
+  "................",
+  "................",
+  "................",
+  "################",
+  ".#.#.#.#.#.#.#.#",
+  "#.#.#.#.#.#.#.#.",
+  ".#.#.#.#.#.#.#.#",
+  "#.#.#.#.#.#.#.#.",
+  ".#.#.#.#.#.#.#.#",
+  "#.#.#.#.#.#.#.#.",
+  "################",
+  "................",
+  "................",
+  "................",
+  "................",
+  /* wireState */
+  "...#............",
+  "#######.........",
+  "#..#..#.........",
+  "...#............",
+  ".#####..........",
+  ".#.#.#...#......",
+  "...#...#####....",
+  "...#...#.#.#....",
+  "...#.....#......",
+  "...#.....#...#..",
+  "...#.....#..###.",
+  "...#.....#..#.#.",
+  "...#.....#...#..",
+  "...#.....#...#..",
+  "...#.....#...#..",
+  "..###...###.###.",
+  /* rrState */
+  "................",
+  "................",
+  "................",
+  ".##..##..##..##.",
+  ".##..##..##..##.",
+  "################",
+  "################",
+  ".##..##..##..##.",
+  ".##..##..##..##.",
+  "################",
+  "################",
+  ".##..##..##..##.",
+  ".##..##..##..##.",
+  "................",
+  "................",
+  "................",
+  /* parkState */
+  "..####..........",
+  ".#.#.##.........",
+  "#.#.#.##........",
+  ".#.#.#.#........",
+  "#.#.#.##........",
+  ".#.#.#.#........",
+  "..##.##..#######",
+  "...##....#.#.#.#",
+  "...##....#.#.#.#",
+  "...##....#.#.#.#",
+  "...##....#.#.#.#",
+  "...##....#.###.#",
+  "...##....#.....#",
+  "...##....#.....#",
+  "...##....#.....#",
+  "################",
+  /* residentialState */
+  "................",
+  ".......#...##...",
+  "......###..##...",
+  ".....#####.##...",
+  "....#########...",
+  "...#########....",
+  "..###########...",
+  ".#############..",
+  "###############.",
+  ".#...........#..",
+  ".#.##.###.##.#..",
+  ".#.##.#.#.##.#..",
+  ".#....#.#....#..",
+  ".#....#.#....#..",
+  ".#############..",
+  "................",
+  /* commercialState */
+  ".....######.....",
+  ".....#....#.....",
+  ".....#.##.#.....",
+  ".....#....#.....",
+  ".....#.##.#.....",
+  "######....#.....",
+  "#....#.##.#####.",
+  "#.##.#....#...#.",
+  "#....#.##.#.#.#.",
+  "#.##.#....#...#.",
+  "#....#.##.#.#.#.",
+  "#.##.#....#...#.",
+  "#....#.##.#.#.#.",
+  "#.##.#....#...#.",
+  "#....#.##.#.#.#.",
+  "################",
+  /* industrialState */
+  ".........##.##..",
+  "........#..#..#.",
+  ".........##.##..",
+  "...........##...",
+  "...........##...",
+  "...........##...",
+  "...........##...",
+  "#...#...#..##...",
+  "##..##..##.##...",
+  "###.###.###.##..",
+  "################",
+  "#..............#",
+  "#.##.##.##.##..#",
+  "#..............#",
+  "#..............#",
+  "################",
+  /* policeState */
+  ".##############.",
+  ".#............#.",
+  ".#.###..###...#.",
+  ".#.#.#..#..#..#.",
+  ".#.###..#..#..#.",
+  ".#.#....#..#..#.",
+  ".#.#....###...#.",
+  ".#............#.",
+  ".#............#.",
+  "..#..........#..",
+  "..#..........#..",
+  "...#........#...",
+  "....#......#....",
+  ".....##..##.....",
+  ".......##.......",
+  "................",
+  /* fireState */
+  "................",
+  "...#####........",
+  "......##........",
+  "......####......",
+  ".....####.#.....",
+  "....######.#....",
+  "....######..#...",
+  "....######..#...",
+  "....#....#..#...",
+  "....#....#..#...",
+  "....######.###..",
+  "....######.###..",
+  "....######......",
+  "....######......",
+  "....######......",
+  ".....####.......",
+  /* stadiumState */
+  "................",
+  ".....#######....",
+  "...##.......##..",
+  "..#############.",
+  ".##############.",
+  ".#######..#####.",
+  ".#######..#####.",
+  ".##############.",
+  ".##############.",
+  "######.########.",
+  "#.....#########.",
+  "######.#######..",
+  "#.....#######...",
+  "######.###......",
+  "................",
+  "................",
+  /* powerState */
+  "..##.........##.",
+  ".#..#.......##..",
+  "..##.......##...",
+  ".##.......#####.",
+  ".##.........##..",
+  ".##........##...",
+  ".##.......##....",
+  ".##......##.....",
+  ".##......#......",
+  "#####...........",
+  "#...#...........",
+  "#...############",
+  "#.#.#..........#",
+  "#...#.##.##.##.#",
+  "#.#.#..........#",
+  "################",
+  /* seaportState */
+  "......####......",
+  ".....#....#.....",
+  "......####......",
+  ".......##.......",
+  "...##########...",
+  ".......##.......",
+  ".......##.......",
+  ".......##.......",
+  ".#.....##.....#.",
+  ".##....##....##.",
+  ".##....##....##.",
+  "..##...##...##..",
+  "...###.##.###...",
+  ".....######.....",
+  ".......##.......",
+  "................",
+  /* airportState */
+  ".......##.......",
+  "......####......",
+  "......####......",
+  ".......##.......",
+  "......####......",
+  "....########....",
+  "..############..",
+  "################",
+  "###...####...###",
+  ".......##.......",
+  ".......##.......",
+  ".......##.......",
+  ".....######.....",
+  "....########....",
+  "....##....##....",
+  "................",
+  /* nuclearState */
+  "................",
+  "...#........#...",
+  "..###......###..",
+  ".####......####.",
+  ".#####....#####.",
+  "#######..#######",
+  "######.##.######",
+  "#####.####.#####",
+  "......####......",
+  ".......##.......",
+  "................",
+  "......####......",
+  ".....######.....",
+  ".....######.....",
+  "....########....",
+  ".....######.....",
+  /* queryState */
+  "................",
+  ".....######.....",
+  "....##....##....",
+  "....##....##....",
+  "..........##....",
+  ".........##.....",
+  "........##......",
+  ".......##.......",
+  ".......##.......",
+  ".......##.......",
+  "................",
+  ".......##.......",
+  ".......##.......",
+  "................",
+  "................",
+  "................",
+  /* chalkState */
+  "............###.",
+  "...........#..##",
+  "..........#..#.#",
+  ".........#..#..#",
+  "........#..#..#.",
+  ".......#..#..#..",
+  "......#..#..#...",
+  ".....#..#..#....",
+  "....#..#..#.....",
+  "....#.#..#......",
+  "....##..#.......",
+  "....#..#........",
+  "....####........",
+  "................",
+  ".##....##....##.",
+  "#..#..#..#..#..#",
+  /* eraserState */
+  "................",
+  "................",
+  ".........######.",
+  "........#.....##",
+  ".......#.....#.#",
+  "......#.....#..#",
+  ".....#.....#..#.",
+  "....#.....#..#..",
+  "...#.....#..#...",
+  "..#######..#....",
+  "..#######.#.....",
+  "..#######.......",
+  "................",
+  "................",
+  "................",
+  "................"
+};
+
+static Pixrect *mi_icon[MI_NUM];
+
+
+static void
+mi_load()
+{
+  int i, x, y;
+  char *row;
+
+  for (i = 0; i < MI_NUM; i++) {
+    if ((mi_icon[i] = mem_create(MI_N, MI_N, 1)) == NULL) {
+      fprintf(stderr, "micropolis: out of memory for the palette\n");
+      exit(1);
+    }
+    pr_rop(mi_icon[i], 0, 0, MI_N, MI_N, PIX_CLR, (Pixrect *)NULL, 0, 0);
+    for (y = 0; y < MI_N; y++) {
+      row = mi_art[i * MI_N + y];
+      for (x = 0; x < MI_N && row[x]; x++)
+	if (row[x] == '#')
+	  pr_put(mi_icon[i], x, y, 1);
+    }
+  }
+}
+
+
+/* 50% grey, as the desktop of the DMD and of the Mac */
+static void
+mi_grey(pr)
+  Pixrect *pr;
+{
+  struct mpr_data *md = mpr_d(pr);
+  unsigned char *p = (unsigned char *)md->md_image;
+  int x, y;
+
+  for (y = 0; y < pr->pr_height; y++, p += md->md_linebytes)
+    for (x = 0; x < md->md_linebytes; x++)
+      p[x] = (y & 1) ? 0x55 : 0xaa;
+}
+
+
+/* Each icon in its button: a black frame, a shadow right and below.  The
+ * selected one is inverted, as on the Mac. */
+static void
+mi_draw()
+{
+  int i, x, y, sel;
+
+  mi_grey(tl_buf);
+  sv_frame_rect(tl_buf, 0, 0, tl_w, tl_h, SIMCOLOR_BLACK, 1);
+  tl_state = SvEditor ? SvEditor->tool_state : -1;
+  for (i = 0; i < MI_NUM; i++) {
+    x = MI_X(i);
+    y = MI_Y(i);
+    sel = (mi_state[i] == tl_state);
+    sv_fill(tl_buf, x - 2, y - 2, MI_N + 4, MI_N + 4, SIMCOLOR_BLACK);
+    sv_fill(tl_buf, x - 1, y - 1, MI_N + 2, MI_N + 2,
+	    sel ? SIMCOLOR_BLACK : SIMCOLOR_WHITE);
+    sv_fill(tl_buf, x + MI_N + 2, y - 1, 1, MI_N + 4, SIMCOLOR_BLACK);
+    sv_fill(tl_buf, x - 1, y + MI_N + 2, MI_N + 4, 1, SIMCOLOR_BLACK);
+    if (mi_icon[i] != NULL)
+      pr_rop(tl_buf, x, y, MI_N, MI_N,
+	     sel ? (PIX_NOT(PIX_SRC) & PIX_DST) : (PIX_SRC | PIX_DST),
+	     mi_icon[i], 0, 0);
+  }
+}
+
+
+/* The tool's name and cost, as the DUX palette shows them on top. */
+char *
+sv_tool_label(state)
+  int state;
+{
+  static char s[80];
+
+  if (state < firstState || state > lastState)
+    return "";
+  sprintf(s, "%s  %s", tl_name[state], tl_cost[state]);
+  return s;
+}
+
+
+/* ---- the palette ----------------------------------------------------------- */
+
 void
 sv_tools_load()
 {
   int i;
   char name[64];
 
+  if (!SvColor) {
+    mi_load();
+    return;
+  }
   for (i = 0; tl_layout[i].icon != NULL; i++) {
     sprintf(name, "%s.xpm", tl_layout[i].icon);
     tl_img[i][0] = sv_load_image(name);
@@ -99,6 +520,10 @@ tl_draw()
       pr_destroy(tl_buf);
     tl_buf = mem_create(tl_w, tl_h, SvColor ? 8 : 1);
   }
+  if (!SvColor) {
+    mi_draw();
+    return;
+  }
   sv_fill(tl_buf, 0, 0, tl_w, tl_h, SvUiBack);
   sv_bevel2(tl_buf, 0, 0, tl_w, tl_h, 1);
 
@@ -111,12 +536,8 @@ tl_draw()
 
   for (i = 0; tl_layout[i].icon != NULL; i++) {
     sel = (tl_layout[i].state == tl_state);
-    /* DUX shows the plain icons, and the hi one for the selected tool.
-     * The icons have no mono colors, so in 1 bit the plain ones come out
-     * dark and the hi ones light.  There every tool shows its hi icon, and
-     * the selected one in reverse video, as DUX's mono colors do for its
-     * graph buttons (gr*hi.xpm). */
-    img = tl_img[i][(sel || !SvColor) ? 1 : 0];
+    /* DUX shows the plain icons, and the hi one for the selected tool */
+    img = tl_img[i][sel ? 1 : 0];
     if (img == NULL)
       img = tl_img[i][0];
     if (img == NULL)
@@ -125,14 +546,7 @@ tl_draw()
     y = tl_layout[i].y;
     /* Tk buttons, border 1: raised, the selected one sunken */
     sv_draw_image(tl_buf, x + 1, y + 1, img);
-    if (SvColor)
-      sv_bevel(tl_buf, x, y, img->w + 2, img->h + 2, !sel);
-    else if (sel) {
-      pr_rop(tl_buf, x + 1, y + 1, img->w, img->h, PIX_NOT(PIX_DST),
-	     (Pixrect *)0, 0, 0);
-      sv_frame_rect(tl_buf, x - 1, y - 1, img->w + 4, img->h + 4,
-		    SIMCOLOR_BLACK, 2);
-    }
+    sv_bevel(tl_buf, x, y, img->w + 2, img->h + 2, !sel);
   }
 }
 
@@ -166,10 +580,16 @@ sv_tools_redraw()
 void
 sv_tools_update()
 {
+  static int label = -1;		/* the tool in the editor bar's label */
+
   if (!SvReady || tl_pw == NULL)
     return;
   if (SvEditor != NULL && SvEditor->tool_state != tl_state)
     tl_dirty = 1;
+  if (!SvColor && SvEditor != NULL && SvEditor->tool_state != label) {
+    label = SvEditor->tool_state;
+    sv_editor_bar_redraw();		/* the tool's name and cost */
+  }
   if (tl_dirty) {
     tl_draw();
     tl_blit();
@@ -215,7 +635,14 @@ tl_event(canvas, event, arg)
 
   if (!SvReady)
     return;
-  if (id == MS_LEFT && event_is_down(event)) {
+  if (id == MS_LEFT && event_is_down(event) && !SvColor) {
+    for (i = 0; i < MI_NUM; i++)
+      if (x >= MI_X(i) - 3 && y >= MI_Y(i) - 3 &&
+	  x < MI_X(i) + MI_N + 3 && y < MI_Y(i) + MI_N + 3) {
+	sv_select_tool(mi_state[i]);
+	break;
+      }
+  } else if (id == MS_LEFT && event_is_down(event)) {
     for (i = 0; tl_layout[i].icon != NULL; i++) {
       img = tl_img[i][0];
       if (img != NULL && x >= tl_layout[i].x && y >= tl_layout[i].y &&
@@ -242,7 +669,7 @@ sv_tools_create(frame, below)
   SvToolCanvas = window_create(frame, CANVAS,
 			       WIN_X, 0,
 			       WIN_BELOW, below,
-			       WIN_WIDTH, SV_TOOLS_W,
+			       WIN_WIDTH, SvColor ? SV_TOOLS_W : MI_W,
 			       WIN_HEIGHT, WIN_EXTEND_TO_EDGE,
 			       CANVAS_RETAINED, FALSE,
 			       CANVAS_REPAINT_PROC, tl_repaint,

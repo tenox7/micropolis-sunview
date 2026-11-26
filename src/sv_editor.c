@@ -796,24 +796,67 @@ ed_event(canvas, event, arg)
 }
 
 
-/* The message label: the rest of the bar, raised, in the Large font. */
+/* A raised label in the bar at x, w wide, with str in the middle. */
+static void
+ed_label(b, x, w, font, str)
+  SvBar *b;
+  int x, w;
+  Pixfont *font;
+  char *str;
+{
+  Pixrect *sub;
+  int h = b->h - 4, tw;
+
+  sv_bevel2(b->buf, x, 2, w, h, 1);
+  if (str[0] == 0 || (sub = pr_region(b->buf, x + 3, 4, w - 6, h - 4)) ==
+      NULL)
+    return;
+  tw = sv_text_width(font, str);
+  sv_text(sub, (tw < w - 6) ? (w - 6 - tw) / 2 : 0,
+	  (h - 4 - sv_font_height(font)) / 2, SvUiText, font, str);
+  pr_destroy(sub);
+}
+
+
+/* The width of the tool label: the longest name and cost. */
+static int
+ed_tool_w()
+{
+  static int w = 0;
+  int s, t;
+
+  if (w == 0)
+    for (s = firstState; s <= lastState; s++)
+      if ((t = sv_text_width(SvBoldFont, sv_tool_label(s))) > w)
+	w = t;
+  return w + 16;
+}
+
+
+/* The message label: the rest of the bar, raised, in the Large font.  In
+ * black and white the tool's name and cost are on its right: the 1 bit
+ * palette has no room for them. */
 static void
 ed_bar_extra(b)
   SvBar *b;
 {
-  Pixrect *sub;
-  int x = b->end, w = b->w - b->end - 3, h = b->h - 4, tw;
+  int x = b->end, w = b->w - b->end - 3, tw;
 
+  if (!SvColor && SvEditor != NULL && w - (tw = ed_tool_w()) - 3 >= 8) {
+    ed_label(b, b->w - 3 - tw, tw, SvBoldFont,
+	     sv_tool_label(SvEditor->tool_state));
+    w -= tw + 3;
+  }
   if (w < 8)
     return;
-  sv_bevel2(b->buf, x, 2, w, h, 1);
-  if (ed_msg[0] == 0 || (sub = pr_region(b->buf, x + 3, 4, w - 6, h - 4)) ==
-      NULL)
-    return;
-  tw = sv_text_width(SvBigFont, ed_msg);
-  sv_text(sub, (tw < w - 6) ? (w - 6 - tw) / 2 : 0,
-	  (h - 4 - sv_font_height(SvBigFont)) / 2, SvUiText, SvBigFont, ed_msg);
-  pr_destroy(sub);
+  ed_label(b, x, w, SvBigFont, ed_msg);
+}
+
+
+void
+sv_editor_bar_redraw()
+{
+  sv_bar_redraw(ed_bar);
 }
 
 
@@ -939,8 +982,8 @@ ViewToPixelCoords(view, x, y, outx, outy)
   int *outx, *outy;
 {
   if (view->class == Map_Class) {
-    x = (x * 16) / 3;
-    y = (y * 16) / 3;
+    x = (x * 16) / SvMapScale;
+    y = (y * 16) / SvMapScale;
   } else {
     x = view->pan_x - ((view->w_width >> 1) - x);
     y = view->pan_y - ((view->w_height >> 1) - y);

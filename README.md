@@ -80,10 +80,20 @@ Usual SunView window options (`-Wp`, `-Ws` and so on) work too.
 The game picks black and white by itself on a 1 bit screen (bwtwo).
 Use `-mono` to get it on a color screen.
 
-It uses the black and white art that DUX made for monochrome displays:
-the black and white tiles (`tilesbw.xpm`), the gray small tiles for
-the map (`res/hexa.388`), the mono colors in the DUX images, and
-patterns for the map overlays.
+It uses the black and white tiles that DUX made for monochrome
+displays (`tilesbw.xpm`) and the mono colors in the DUX images.
+The tool palette and the overall map are the ones of
+[Micropolis for the DMD 5620](https://github.com/tenox7/dmdcity):
+
+- The palette has 16x16 1 bit icons in 2 columns. The selected tool
+  is inverted. Its name and cost are at the right of the editor's
+  menu bar.
+- The map is a street map with 2 pixels per tile (240x200): roads,
+  rails and water are black, trees are dots. The zone maps show the
+  zones black and the roads grey. The power map shows what conducts
+  power: black with power, grey without.
+- An overlay shows 3 levels of the highest value on the map now:
+  dots, grey and black. Its legend goes from MIN to MAX.
 
 ## Sound
 
